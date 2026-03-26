@@ -1,0 +1,399 @@
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.example.studentgradecalculator.ui.theme.StudentGradeCalculatorTheme
+import java.io.BufferedReader
+import java.io.InputStreamReader
+
+/**
+ * Modèle de données pour un Étudiant.
+ */
+data class Student(val id: Long, val name: String, val score: Int?)
+
+/**
+ * États de navigation de l'application.
+ */
+enum class Screen {
+    Welcome,
+    Calculator
+}
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+
+        setContent {
+            StudentGradeCalculatorTheme(darkTheme = true, dynamicColor = false) {
+                var currentScreen by remember { mutableStateOf(Screen.Welcome) }
+
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    AnimatedContent(
+                        targetState = currentScreen,
+                        transitionSpec = {
+                            fadeIn() togetherWith fadeOut()
+                        },
+                        label = "ScreenTransition"
+                    ) { screen ->
+                        when (screen) {
+                            Screen.Welcome -> WelcomeScreen(onStart = { currentScreen = Screen.Calculator })
+                            Screen.Calculator -> {
+                                BackHandler { currentScreen = Screen.Welcome }
+                                GradeCalculatorApp(onBack = { currentScreen = Screen.Welcome })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WelcomeScreen(onStart: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Surface(
+            modifier = Modifier.size(120.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Image(
+                    imageVector = Icons.Default.Home,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text(
+            text = "Grade Master Pro",
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Gérez les notes de vos étudiants avec élégance et simplicité. Calculez les grades instantanément et partagez les résultats.",
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Button(
+            onClick = onStart,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = MaterialTheme.shapes.extraLarge,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Text(
+                text = "Commencer",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = "Version 2.0 • Modern Dark UI",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.outline
+        )
+    }
+}
+
+/**
+ * Logique de calcul du Grade (Note).
+ */
+fun getGrade(score: Int): Char = when (score) {
+    in 90..100 -> 'A'
+    in 80..89 -> 'B'
+    in 70..79 -> 'C'
+    in 60..69 -> 'D'
+    else -> 'F'
+}
+
+/**
+ * Formate le message de résultat d'un étudiant pour le partage.
+ */
+fun formatStudentGrade(student: Student): String {
+    return student.score?.let {
+        "${student.name} marqué $it : Grade ${getGrade(it)}"
+    } ?: "Pas de score pour ${student.name}"
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GradeCalculatorApp(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val students = remember {
+        mutableStateListOf(
+            Student(1, "Alice", 95),
+            Student(2, "Bob", 82),
+            Student(3, "Charlie", null),
+            Student(4, "Diana", 47)
+        )
+    }
+
+    var showAddDialog by remember { mutableStateOf(false) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(it)
+                val reader = BufferedReader(InputStreamReader(inputStream))
+                val newEntries = reader.lineSequence().mapIndexedNotNull { index, line ->
+                    val parts = line.split(",")
+                    if (parts.isNotEmpty()) {
+                        val name = parts[0].trim()
+                        val score = parts.getOrNull(1)?.trim()?.toIntOrNull()
+                        if (name.isNotEmpty()) {
+                            Student(System.currentTimeMillis() + index, name, score)
+                        } else null
+                    } else null
+                }.toList()
+                
+                if (newEntries.isNotEmpty()) {
+                    students.addAll(newEntries)
+                    Toast.makeText(context, "${newEntries.size} étudiants importés", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Erreur lors de l'importation", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun shareText(text: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        context.startActivity(Intent.createChooser(intent, "Partager via"))
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Calculateur", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { filePickerLauncher.launch("text/*") }) {
+                        Icon(Icons.Default.Add, contentDescription = "Importer")
+                    }
+                    IconButton(onClick = {
+                        val shareContent = "📊 Rapport global des Grades :\n\n" + 
+                            students.joinToString("\n") { formatStudentGrade(it) }
+                        shareText(shareContent)
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Tout partager")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.primary
+                )
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddDialog = true },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Ajouter un étudiant")
+            }
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.padding(innerPadding)) {
+            if (students.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Aucun étudiant. Ajoutez-en un !", color = MaterialTheme.colorScheme.outline)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(students, key = { it.id }) { student ->
+                        StudentCard(
+                            student = student,
+                            onDelete = { students.remove(student) },
+                            onShare = { shareText(formatStudentGrade(student)) }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (showAddDialog) {
+            AddStudentDialog(
+                onDismiss = { showAddDialog = false },
+                onAdd = { name, score ->
+                    students.add(Student(System.currentTimeMillis(), name, score))
+                    showAddDialog = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun AddStudentDialog(onDismiss: () -> Unit, onAdd: (String, Int?) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var scoreStr by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nouvel Étudiant") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Nom") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = scoreStr,
+                    onValueChange = { scoreStr = it },
+                    label = { Text("Score (facultatif)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { if (name.isNotBlank()) onAdd(name, scoreStr.toIntOrNull()) },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Ajouter")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler")
+            }
+        }
+    )
+}
+
+@Composable
+fun StudentCard(student: Student, onDelete: () -> Unit, onShare: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = student.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                val statusText = student.score?.let {
+                    "Score : $it • Grade : ${getGrade(it)}"
+                } ?: "Pas de score pour ${student.name}"
+                
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (student.score == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                )
+            }
+            Row {
+                IconButton(onClick = onShare) {
+                    Icon(
+                        Icons.Default.Share,
+                        contentDescription = "Partager ce score",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Supprimer",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        }
+    }
+}
